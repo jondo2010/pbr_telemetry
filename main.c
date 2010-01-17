@@ -6,31 +6,55 @@
  *  Author: John Hughes <jondo2010@gmail.com>
  */
 
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <usart.h>
 #include <xbee.h>
 
-void
-init_lib_xbee ()
-{
-	usart0_init (115200);
-	xbee_set_uart_read_function (&usart0_read_from_rx_buf);
-	xbee_set_uart_write_function (&usart0_write_to_tx_buf);
-	xbee_set_uart_flush_rx_function (&usart0_flush_rx_buf);
-	xbee_set_uart_flush_tx_function (&usart0_flush_tx_buf);
-	usart0_set_rx_byte_callback (&xbee_receive_byte_from_uart);
+#include "telemetry.h"
 
-	xbee_init ();
+ISR (TIMER2_OVF_vect)
+{
+	PORTE ^= _BV (PE4);
 }
 
-void main(void)
+void
+init_timer (void)
 {
-	init_lib_xbee ();
+	ASSR = _BV (AS2);		/// External crystal source
+	TCCR2A = _BV (CS22) | _BV (CS20);		/// Clock enabled, scale by 128 => 1 s interrupts
+	TIMSK2 = _BV (TOIE2);	/// Interrupt on overflow
+}
+
+int
+main (void)
+{
+	DDRE = _BV (PE4);
+	PORTE = 0;
+
+	//init_timer ();
+
+	sei ();
+
+	telemetry_init ();
+
+	while ( xbee_get_driver_status () != xbee_driver_status_ready );
+
+	xbee_send_data (0xffff, "READY!", 6);
 
 	for (;;)
 	{
-		if ( xbee_get_driver_status () == xbee_driver_status_ready )
-		{
-			xbee_digest_incoming_packets ();
-		}
+		telemetry_process ();
+
+		_delay_ms(50);
+		PORTE ^= _BV (PE4);
 	}
+
+	return 0;
 }
