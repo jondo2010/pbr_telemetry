@@ -9,6 +9,7 @@
 #define TELEMETRY_H_
 
 #include "dac.h"
+#include "xbee.h"
 
 void
 telemetry_xbee_command_response_callback (xbee_api_packet *p);
